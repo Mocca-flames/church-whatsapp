@@ -1,6 +1,6 @@
 export const MESSAGES = {
   menu: `🙏 *Welcome to\n
-   "Fountain of Prayer Ministries"}*
+   Fountain of Prayer Ministries *
 
 Select a service:
 
