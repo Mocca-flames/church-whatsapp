@@ -613,7 +613,7 @@ async function completeHouseVisit(sock, chatJid, phone, msg) {
   setState(phone, "IDLE");
 }
 
-// FIXED Helper functions with proper error handling and debugging 
+// FIXED Helper functions with proper error handling and debugging
 async function send(sock, chatJid, text) {
   try {
     console.log(`📤 Sending to ${chatJid}: ${text.substring(0, 50)}...`);
@@ -660,9 +660,13 @@ async function sendAdminNotification(sock, adminPhone, order, receiptPath) {
       : `${adminPhone}@s.whatsapp.net`;
     console.log(`📤 Sending admin notification to ${jid}`);
 
+    const customerPhone = order.customer.startsWith("+")
+      ? order.customer
+      : `+${order.customer}`;
+
     const message =
       `🔔 *NEW ORDER*\n\n` +
-      `Customer: +${order.customer}\n` +
+      `Customer: ${customerPhone}\n` +
       `Service: ${order.service}\n` +
       `${order.details}\n` +
       `Amount: R${order.amount}\n` +

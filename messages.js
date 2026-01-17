@@ -1,5 +1,6 @@
 export const MESSAGES = {
-  menu: `🙏 *Welcome to ${process.env.CHURCH_NAME || "Church"}*
+  menu: `🙏 *Welcome to\n
+   ${env.CHURCH_NAME || "Fountain of Prayer Ministries"}*
 
 Select a service:
 
@@ -44,5 +45,5 @@ Reply with number (1-4)`,
     `Number: ${env.PAYSHARP_NUMBER}`,
 
   askForName:
-    "📝 Before we proceed, what is your name and surname? (e.g., John Doe)",
+    "📝 Before we proceed, what is your name and surname? (e.g., Thabo Molefe)",
 };
