@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  whatsapp-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp_bot
+    # The bot usually saves its session data in the same directory as the execution.
+    # We will mount a volume to persist this data between restarts.
+    # Assuming session files are saved in the current directory, we'll map the volume to /app.
+    # If the session data is saved in a specific subdirectory (e.g., './auth_info_baileys'),
+    # the volume mount should be updated accordingly.
+    volumes:
+      - bot_data:/app/session
+      - .env:/app/.env:ro
+    restart: unless-stopped
+    # If the bot needs to access any external services, they would be configured here.
+    # Since this is a WhatsApp bot, it doesn't typically expose a port, but if it did
+    # (e.g., for health checks or webhooks), 'ports' would be used.
+
+volumes:
+  bot_data:
+    driver: local

@@ -1,0 +1,14 @@
+{
+  "name": "church-whatsapp-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "baileys": "latest",
+    "canvas": "3.2.1",
+    "pino": "^8.19.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

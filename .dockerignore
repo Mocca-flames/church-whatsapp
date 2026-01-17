@@ -1,0 +1,12 @@
+# Dependencies
+node_modules
+
+# Configuration and Environment
+.env
+.vscode
+
+# Version Control and Artifacts
+.git
+.gitignore
+plan.md
+receipt.png
