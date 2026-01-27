@@ -12,7 +12,7 @@ services:
     # If the session data is saved in a specific subdirectory (e.g., './auth_info_baileys'),
     # the volume mount should be updated accordingly.
     volumes:
-      - bot_data:/app/session
+      - ./auth_info:/app/auth_info
       - .env:/app/.env:ro
     restart: unless-stopped
     # If the bot needs to access any external services, they would be configured here.

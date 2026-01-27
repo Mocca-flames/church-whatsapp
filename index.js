@@ -141,7 +141,14 @@ async function startBot() {
     console.log(`🖼️  Has Image: ${hasImage ? "YES" : "NO"}`);
 
     try {
-      await handleMessage(sock, chatJid, phone, messageText.trim(), msg, hasImage);
+      await handleMessage(
+        sock,
+        chatJid,
+        phone,
+        messageText.trim(),
+        msg,
+        hasImage,
+      );
     } catch (error) {
       console.error("❌ Error in handleMessage:", error);
       console.error("Stack trace:", error.stack);
@@ -189,7 +196,9 @@ async function handleMessage(sock, chatJid, phone, text, msg, hasImage) {
     case "IDLE":
     case "MENU_SHOWN":
       if (!state.data.name) {
-        console.log(`DEBUG: Name missing for ${phone}, transitioning to NAME_COLLECTION`);
+        console.log(
+          `DEBUG: Name missing for ${phone}, transitioning to NAME_COLLECTION`,
+        );
         await send(sock, chatJid, MESSAGES.askForName);
         setState(phone, "NAME_COLLECTION");
         return;
@@ -231,7 +240,11 @@ async function handleMessage(sock, chatJid, phone, text, msg, hasImage) {
 
     case "PATIENT_DELIVERY_PAYMENT":
       if (upperText === "PAID") {
-        await send(sock, chatJid, "📸 Please send proof of payment (screenshot)");
+        await send(
+          sock,
+          chatJid,
+          "📸 Please send proof of payment (screenshot)",
+        );
         setState(phone, "PATIENT_DELIVERY_PROOF");
       }
       break;
@@ -240,7 +253,11 @@ async function handleMessage(sock, chatJid, phone, text, msg, hasImage) {
       if (hasImage) {
         await completePatientDelivery(sock, chatJid, phone, msg);
       } else {
-        await send(sock, chatJid, "❌ Please send an image (screenshot of payment)");
+        await send(
+          sock,
+          chatJid,
+          "❌ Please send an image (screenshot of payment)",
+        );
       }
       break;
 
@@ -334,30 +351,50 @@ async function handleMenuSelection(sock, chatJid, phone, text) {
   switch (text) {
     case "1":
       await send(sock, chatJid, MESSAGES.patientDeliveryInfo(env));
-      await send(sock, chatJid, "📍 Please describe your PICKUP location (address or area)");
+      await send(
+        sock,
+        chatJid,
+        "📍 Please describe your PICKUP location (address or area)",
+      );
       setState(phone, "PATIENT_DELIVERY_PICKUP");
       return true;
 
     case "2":
       await send(sock, chatJid, MESSAGES.ehailingInfo(env));
-      await send(sock, chatJid, "📍 Please describe your PICKUP location (address or area)");
+      await send(
+        sock,
+        chatJid,
+        "📍 Please describe your PICKUP location (address or area)",
+      );
       setState(phone, "EHAILING_PICKUP");
       return true;
 
     case "3":
       await send(sock, chatJid, MESSAGES.foodDeliveryInfo(env));
-      await send(sock, chatJid, "🏪 Please tell us the RESTAURANT name and location");
+      await send(
+        sock,
+        chatJid,
+        "🏪 Please tell us the RESTAURANT name and location",
+      );
       setState(phone, "FOOD_RESTAURANT");
       return true;
 
     case "4":
       await send(sock, chatJid, MESSAGES.patientTransportInfo(env));
-      await send(sock, chatJid, "📍 Please describe your PICKUP location (address or area)");
+      await send(
+        sock,
+        chatJid,
+        "📍 Please describe your PICKUP location (address or area)",
+      );
       setState(phone, "PATIENT_TRANSPORT_PICKUP");
       return true;
 
     default:
-      await send(sock, chatJid, "❌ Invalid option. Please select 1, 2, 3, or 4");
+      await send(
+        sock,
+        chatJid,
+        "❌ Invalid option. Please select 1, 2, 3, or 4",
+      );
       return false;
   }
 }
@@ -429,7 +466,11 @@ async function handleEhailingDropoff(sock, chatJid, phone, text) {
 async function handleEhailingDistance(sock, chatJid, phone, text) {
   const distance = parseFloat(text);
   if (isNaN(distance) || distance < 1) {
-    await send(sock, chatJid, "❌ Please enter a valid distance (e.g., 5 or 10)");
+    await send(
+      sock,
+      chatJid,
+      "❌ Please enter a valid distance (e.g., 5 or 10)",
+    );
     return;
   }
 
@@ -554,7 +595,11 @@ async function completeFoodDelivery(sock, chatJid, phone, msg) {
 // ========== PATIENT TRANSPORT HANDLERS ==========
 async function handlePatientTransportPickup(sock, chatJid, phone, text) {
   setState(phone, "PATIENT_TRANSPORT_DESTINATION", { pickupLocation: text });
-  await send(sock, chatJid, "🏥 Please provide the DESTINATION (hospital/clinic/home)");
+  await send(
+    sock,
+    chatJid,
+    "🏥 Please provide the DESTINATION (hospital/clinic/home)",
+  );
 }
 
 async function handlePatientTransportDestination(sock, chatJid, phone, text) {
@@ -674,6 +719,8 @@ async function sendAdminNotification(sock, adminPhone, order, receiptPath) {
     throw error;
   }
 }
+
+const MOLO_HOSPITAL_DESTINATION = "Molo-Hospital";
 
 // Start
 startBot();
