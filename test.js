@@ -1,12 +1,12 @@
 import { generateReceipt } from "./receipt.js"; // Ensure filename matches
 
 const sampleData = {
-  churchName: "Fountain of Prayer Ministries",
-  orderNumber: "884210",
-  service: "Special Building Fund",
-  customer: "Thabo Molefe",
-  amount: "550.00",
-  date: "24 May 2024",
+  orderNumber: 158,
+  companyName:"Molo-Tech",
+  service: "Patient Delivery",
+  details: "From: XYZ\nTo: ABC",
+  amount: 100,
+  customer: "John Doe",
 };
 
 (async () => {
