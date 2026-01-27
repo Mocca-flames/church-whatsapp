@@ -66,16 +66,11 @@ async function startBot() {
     auth: state,
     logger,
     printQRInTerminal: false,
-
-    syncFullHistory: false, // CRITICAL for 405 fix
-
+    syncFullHistory: false,
     browser: ["Ubuntu", "Chrome", "120.0.04"],
-
     generateHighQualityLinkPreview: true,
-
     connectTimeoutMs: 60_000,
     defaultQueryTimeoutMs: 60_000,
-
     shouldIgnoreJid: (jid) => false,
   });
 
@@ -110,11 +105,9 @@ async function startBot() {
     }
   });
 
-  // IMPROVED Message handler with better debugging
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0];
 
-    // Debug: Log ALL incoming messages
     console.log("📨 RAW MESSAGE RECEIVED:", {
       from: msg.key.remoteJid,
       fromMe: msg.key.fromMe,
@@ -127,51 +120,36 @@ async function startBot() {
       return;
     }
 
-    // CRITICAL: Use the FULL remoteJid, don't reconstruct it
     const chatJid = msg.key.remoteJid;
     const isGroup = chatJid.includes("@g.us");
 
-    // Only handle personal messages
     if (isGroup) {
       console.log(`⏭️  Skipping group message from ${chatJid}`);
       return;
     }
 
-    // Extract phone for state tracking (strip JID suffix)
     const phone = chatJid.split("@")[0];
 
     const messageText =
       msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
 
     const hasImage = msg.message?.imageMessage;
-    const hasLocation = msg.message?.locationMessage;
 
     console.log(`📩 From JID: ${chatJid}`);
     console.log(`📱 Phone ID: ${phone}`);
     console.log(`📝 Text: ${messageText || "[Media]"}`);
     console.log(`🖼️  Has Image: ${hasImage ? "YES" : "NO"}`);
-    console.log(`📍 Has Location: ${hasLocation ? "YES" : "NO"}`);
 
     try {
-      // PASS THE FULL JID, NOT JUST THE PHONE NUMBER
-      await handleMessage(
-        sock,
-        chatJid, // ← Changed from 'phone' to 'chatJid'
-        phone, // ← Add phone separately for state tracking
-        messageText.trim(),
-        msg,
-        hasImage,
-        hasLocation,
-      );
+      await handleMessage(sock, chatJid, phone, messageText.trim(), msg, hasImage);
     } catch (error) {
       console.error("❌ Error in handleMessage:", error);
       console.error("Stack trace:", error.stack);
 
-      // Send error message to user
       try {
         await send(
           sock,
-          chatJid, // ← Changed from 'phone' to 'chatJid'
+          chatJid,
           "⚠️ An error occurred. Please type MENU to restart.",
         );
       } catch (sendError) {
@@ -184,15 +162,7 @@ async function startBot() {
 }
 
 // Message router
-async function handleMessage(
-  sock,
-  chatJid,
-  phone,
-  text,
-  msg,
-  hasImage,
-  hasLocation,
-) {
+async function handleMessage(sock, chatJid, phone, text, msg, hasImage) {
   const state = getState(phone);
   const upperText = text.toUpperCase();
 
@@ -218,24 +188,19 @@ async function handleMessage(
   switch (state.state) {
     case "IDLE":
     case "MENU_SHOWN":
-      // Check if name is collected
       if (!state.data.name) {
-        console.log(
-          `DEBUG: Name missing for ${phone}, transitioning to NAME_COLLECTION`,
-        );
+        console.log(`DEBUG: Name missing for ${phone}, transitioning to NAME_COLLECTION`);
         await send(sock, chatJid, MESSAGES.askForName);
         setState(phone, "NAME_COLLECTION");
         return;
       }
 
-      // If name exists, proceed to menu logic
       if (state.state === "IDLE") {
         console.log(`DEBUG: Sending menu to ${phone}`);
         await send(sock, chatJid, MESSAGES.menu);
         setState(phone, "MENU_SHOWN");
         break;
       } else {
-        // MENU_SHOWN
         console.log(`DEBUG: Handling menu selection for ${phone}: ${text}`);
         const handled = await handleMenuSelection(sock, chatJid, phone, text);
         if (!handled) {
@@ -245,117 +210,115 @@ async function handleMessage(
       }
 
     case "NAME_COLLECTION":
-      // Basic validation for name (must not be empty)
       if (text.length > 0) {
         console.log(`DEBUG: Name collected for ${phone}: ${text}`);
         setState(phone, "IDLE", { name: text });
-        await send(
-          sock,
-          chatJid,
-          `Thank you, ${text}! You can now use the menu.`,
-        );
-        // Fall through to IDLE to display the menu immediately
-        await handleMessage(
-          sock,
-          chatJid,
-          phone,
-          "MENU",
-          msg,
-          hasImage,
-          hasLocation,
-        );
+        await send(sock, chatJid, `Thank you, ${text}! Let's get you moving.`);
+        await handleMessage(sock, chatJid, phone, "MENU", msg, hasImage);
       } else {
-        await send(sock, chatJid, "❌ Please enter your name and surname.");
+        await send(sock, chatJid, "❌ Please enter your full name.");
       }
       break;
 
-    // ONE-ON-ONE FLOW
-    case "ONE_ON_ONE_DATE":
-      await handleOneOnOneDate(sock, chatJid, phone, text);
+    // PATIENT DELIVERY FLOW
+    case "PATIENT_DELIVERY_PICKUP":
+      await handlePatientDeliveryPickup(sock, chatJid, phone, text);
       break;
 
-    case "ONE_ON_ONE_PAYMENT":
+    case "PATIENT_DELIVERY_HOSPITAL":
+      await handlePatientDeliveryHospital(sock, chatJid, phone, text);
+      break;
+
+    case "PATIENT_DELIVERY_PAYMENT":
       if (upperText === "PAID") {
-        await send(
-          sock,
-          chatJid,
-          "📸 Please send proof of payment (screenshot)",
-        );
-        setState(phone, "ONE_ON_ONE_PROOF");
+        await send(sock, chatJid, "📸 Please send proof of payment (screenshot)");
+        setState(phone, "PATIENT_DELIVERY_PROOF");
       }
       break;
 
-    case "ONE_ON_ONE_PROOF":
+    case "PATIENT_DELIVERY_PROOF":
       if (hasImage) {
-        await completeOneOnOne(sock, chatJid, phone, msg);
+        await completePatientDelivery(sock, chatJid, phone, msg);
       } else {
-        await send(
-          sock,
-          chatJid,
-          "❌ Please send an image (screenshot of payment)",
-        );
+        await send(sock, chatJid, "❌ Please send an image (screenshot of payment)");
       }
       break;
 
-    // PRODUCT FLOW (Oil/Salt)
-    case "PRODUCT_QUANTITY":
-      await handleProductQuantity(sock, chatJid, phone, text);
+    // E-HAILING FLOW
+    case "EHAILING_PICKUP":
+      await handleEhailingPickup(sock, chatJid, phone, text);
       break;
 
-    case "PRODUCT_CONFIRM":
-      await handleProductConfirm(sock, chatJid, phone, text);
+    case "EHAILING_DROPOFF":
+      await handleEhailingDropoff(sock, chatJid, phone, text);
       break;
 
-    case "PRODUCT_PAYMENT":
+    case "EHAILING_DISTANCE":
+      await handleEhailingDistance(sock, chatJid, phone, text);
+      break;
+
+    case "EHAILING_CONFIRM":
+      await handleEhailingConfirm(sock, chatJid, phone, text);
+      break;
+
+    case "EHAILING_PAYMENT":
       if (upperText === "PAID") {
         await send(sock, chatJid, "📸 Please send proof of payment");
-        setState(phone, "PRODUCT_PROOF");
+        setState(phone, "EHAILING_PROOF");
       }
       break;
 
-    case "PRODUCT_PROOF":
+    case "EHAILING_PROOF":
       if (hasImage) {
-        await completeProduct(sock, chatJid, phone, msg);
+        await completeEhailing(sock, chatJid, phone, msg);
       } else {
         await send(sock, chatJid, "❌ Please send an image");
       }
       break;
 
-    // HOUSE VISIT FLOW
-    case "HOUSE_VISIT_CONFIRM":
-      await handleHouseVisitConfirm(sock, chatJid, phone, text);
+    // FOOD DELIVERY FLOW
+    case "FOOD_RESTAURANT":
+      await handleFoodRestaurant(sock, chatJid, phone, text);
       break;
 
-    case "HOUSE_VISIT_LOCATION":
-      if (upperText === "SKIP") {
-        await send(sock, chatJid, MESSAGES.paymentInstructions(env));
-        setState(phone, "HOUSE_VISIT_PAYMENT", { locationPending: true });
-      } else if (hasLocation) {
-        const loc = msg.message.locationMessage;
-        setState(phone, "HOUSE_VISIT_PAYMENT", {
-          location: { lat: loc.degreesLatitude, lng: loc.degreesLongitude },
-        });
-        await send(
-          sock,
-          chatJid,
-          "✅ Location saved!\n\n" + MESSAGES.paymentInstructions(env),
-        );
-        await send(sock, chatJid, "💰 After paying, reply with: PAID");
-      } else {
-        await send(sock, chatJid, "📍 Please send your location OR type SKIP");
-      }
+    case "FOOD_DELIVERY_ADDRESS":
+      await handleFoodDeliveryAddress(sock, chatJid, phone, text);
       break;
 
-    case "HOUSE_VISIT_PAYMENT":
+    case "FOOD_PAYMENT":
       if (upperText === "PAID") {
         await send(sock, chatJid, "📸 Please send proof of payment");
-        setState(phone, "HOUSE_VISIT_PROOF");
+        setState(phone, "FOOD_PROOF");
       }
       break;
 
-    case "HOUSE_VISIT_PROOF":
+    case "FOOD_PROOF":
       if (hasImage) {
-        await completeHouseVisit(sock, chatJid, phone, msg);
+        await completeFoodDelivery(sock, chatJid, phone, msg);
+      } else {
+        await send(sock, chatJid, "❌ Please send an image");
+      }
+      break;
+
+    // PATIENT TRANSPORT FLOW
+    case "PATIENT_TRANSPORT_PICKUP":
+      await handlePatientTransportPickup(sock, chatJid, phone, text);
+      break;
+
+    case "PATIENT_TRANSPORT_DESTINATION":
+      await handlePatientTransportDestination(sock, chatJid, phone, text);
+      break;
+
+    case "PATIENT_TRANSPORT_PAYMENT":
+      if (upperText === "PAID") {
+        await send(sock, chatJid, "📸 Please send proof of payment");
+        setState(phone, "PATIENT_TRANSPORT_PROOF");
+      }
+      break;
+
+    case "PATIENT_TRANSPORT_PROOF":
+      if (hasImage) {
+        await completePatientTransport(sock, chatJid, phone, msg);
       } else {
         await send(sock, chatJid, "❌ Please send an image");
       }
@@ -370,254 +333,277 @@ async function handleMessage(
 async function handleMenuSelection(sock, chatJid, phone, text) {
   switch (text) {
     case "1":
-      await send(sock, chatJid, MESSAGES.oneOnOneInfo(env));
-      await send(
-        sock,
-        chatJid,
-        "📅 Reply with your preferred date:\n\nTUESDAY or SUNDAY",
-      );
-      setState(phone, "ONE_ON_ONE_DATE");
+      await send(sock, chatJid, MESSAGES.patientDeliveryInfo(env));
+      await send(sock, chatJid, "📍 Please describe your PICKUP location (address or area)");
+      setState(phone, "PATIENT_DELIVERY_PICKUP");
       return true;
 
     case "2":
-      await send(sock, chatJid, MESSAGES.productInfo("Oil", env));
-      await send(sock, chatJid, "🔢 How many? (Reply with number 1-10)");
-      setState(phone, "PRODUCT_QUANTITY", { product: "OIL" });
+      await send(sock, chatJid, MESSAGES.ehailingInfo(env));
+      await send(sock, chatJid, "📍 Please describe your PICKUP location (address or area)");
+      setState(phone, "EHAILING_PICKUP");
       return true;
 
     case "3":
-      await send(sock, chatJid, MESSAGES.productInfo("Salt", env));
-      await send(sock, chatJid, "🔢 How many? (Reply with number 1-10)");
-      setState(phone, "PRODUCT_QUANTITY", { product: "SALT" });
+      await send(sock, chatJid, MESSAGES.foodDeliveryInfo(env));
+      await send(sock, chatJid, "🏪 Please tell us the RESTAURANT name and location");
+      setState(phone, "FOOD_RESTAURANT");
       return true;
 
     case "4":
-      await send(sock, chatJid, MESSAGES.houseVisitInfo(env));
-      await send(sock, chatJid, "✅ Do you understand?\n\nReply: YES or NO");
-      setState(phone, "HOUSE_VISIT_CONFIRM");
+      await send(sock, chatJid, MESSAGES.patientTransportInfo(env));
+      await send(sock, chatJid, "📍 Please describe your PICKUP location (address or area)");
+      setState(phone, "PATIENT_TRANSPORT_PICKUP");
       return true;
 
     default:
-      await send(
-        sock,
-        chatJid,
-        "❌ Invalid option. Please select 1, 2, 3, or 4",
-      );
+      await send(sock, chatJid, "❌ Invalid option. Please select 1, 2, 3, or 4");
       return false;
   }
 }
 
-// One-on-One handlers
-async function handleOneOnOneDate(sock, chatJid, phone, text) {
-  const upper = text.toUpperCase();
-  if (upper === "TUESDAY" || upper === "SUNDAY") {
-    setState(phone, "ONE_ON_ONE_PAYMENT", { date: upper });
-    await send(sock, chatJid, MESSAGES.paymentInstructions(env));
-    await send(sock, chatJid, "💰 After paying, reply with: PAID");
-  } else {
-    await send(sock, chatJid, "❌ Please reply with TUESDAY or SUNDAY");
-  }
+// ========== PATIENT DELIVERY HANDLERS ==========
+async function handlePatientDeliveryPickup(sock, chatJid, phone, text) {
+  setState(phone, "PATIENT_DELIVERY_HOSPITAL", { pickupLocation: text });
+  await send(sock, chatJid, "🏥 Please provide the HOSPITAL/CLINIC location");
 }
 
-async function completeOneOnOne(sock, chatJid, phone, msg) {
-  console.log(`DEBUG: completeOneOnOne for ${phone}`);
-  const state = getState(phone);
-  const orderNumber = `ORD${Date.now()}`;
+async function handlePatientDeliveryHospital(sock, chatJid, phone, text) {
+  setState(phone, "PATIENT_DELIVERY_PAYMENT", { hospitalLocation: text });
+  await send(sock, chatJid, MESSAGES.paymentInstructions(env));
+  await send(sock, chatJid, "💰 After paying, reply with: PAID");
+}
 
-  // Generate receipt
-  console.log(`DEBUG: Generating receipt for ${orderNumber}`);
+async function completePatientDelivery(sock, chatJid, phone, msg) {
+  console.log(`DEBUG: completePatientDelivery for ${phone}`);
+  const state = getState(phone);
+  const orderNumber = `MT${Date.now()}`;
+
   const receiptPath = await generateReceipt({
     orderNumber,
-    churchName: env.CHURCH_NAME,
-    service: "One-on-One with Prophet",
-    date: state.data.date,
-    amount: env.PRICE_ONE_ON_ONE,
+    companyName: env.COMPANY_NAME,
+    service: "Patient Delivery",
+    details: `From: ${state.data.pickupLocation}\nTo: ${state.data.hospitalLocation}`,
+    amount: env.PRICE_PATIENT_DELIVERY,
     customer: state.data.name,
   });
-  console.log(`DEBUG: Receipt generated at ${receiptPath}`);
 
-  // Send receipt to customer
-  console.log(`DEBUG: Sending receipt to customer ${phone}`);
   await sendImage(
     sock,
     chatJid,
     receiptPath,
-    "✅ *PAYMENT CONFIRMED*\n\n📄 Here is your receipt.\n\n✨ Show this to admin on your visit date.",
+    `✅ *BOOKING CONFIRMED*\n\n📄 Your receipt\n🚗 Driver will contact you shortly\n⚡ Emergency priority service`,
   );
-  console.log(`DEBUG: Receipt sent to customer ${phone}`);
 
-  // Notify admin
-  console.log(`DEBUG: Notifying admin ${env.ADMIN_NUMBER}`);
   await sendAdminNotification(
     sock,
     env.ADMIN_NUMBER,
     {
       customer: phone,
-      service: "One-on-One with Prophet",
-      details: `Date: ${state.data.date}`,
-      amount: env.PRICE_ONE_ON_ONE,
+      service: "Patient Delivery",
+      details: `Pickup: ${state.data.pickupLocation}\nHospital: ${state.data.hospitalLocation}`,
+      amount: env.PRICE_PATIENT_DELIVERY,
       orderNumber,
     },
     receiptPath,
   );
-  console.log(`DEBUG: Admin notified`);
 
   setState(phone, "IDLE");
 }
 
-// Product handlers
-async function handleProductQuantity(sock, chatJid, phone, text) {
-  const qty = parseInt(text);
-  if (isNaN(qty) || qty < 1 || qty > 10) {
-    await send(sock, chatJid, "❌ Please enter a number between 1 and 10");
+// ========== E-HAILING HANDLERS ==========
+async function handleEhailingPickup(sock, chatJid, phone, text) {
+  setState(phone, "EHAILING_DROPOFF", { pickupLocation: text });
+  await send(sock, chatJid, "📍 Please describe your DROP-OFF location");
+}
+
+async function handleEhailingDropoff(sock, chatJid, phone, text) {
+  setState(phone, "EHAILING_DISTANCE", { dropoffLocation: text });
+  await send(
+    sock,
+    chatJid,
+    "🚗 Please estimate the distance in kilometers (e.g., 5 or 10)",
+  );
+}
+
+async function handleEhailingDistance(sock, chatJid, phone, text) {
+  const distance = parseFloat(text);
+  if (isNaN(distance) || distance < 1) {
+    await send(sock, chatJid, "❌ Please enter a valid distance (e.g., 5 or 10)");
     return;
   }
 
   const state = getState(phone);
-  const product = state.data.product;
-  const price = product === "OIL" ? env.PRICE_OIL : env.PRICE_SALT;
-  const total = qty * price;
+  const baseFare = parseFloat(env.PRICE_EHAILING_BASE);
+  const perKm = parseFloat(env.PRICE_EHAILING_PER_KM);
+  const total = baseFare + distance * perKm;
 
-  setState(phone, "PRODUCT_CONFIRM", { quantity: qty, total });
+  setState(phone, "EHAILING_CONFIRM", { distance, total });
 
-  const name = product === "OIL" ? "Anointing Oil" : "Covenant Salt";
   await send(
     sock,
     chatJid,
-    `📦 *ORDER SUMMARY*\n\n` +
-      `Product: ${name}\n` +
-      `Quantity: ${qty}\n` +
-      `Total: R${total}\n\n` +
+    `🚖 *RIDE SUMMARY*\n\n` +
+      `From: ${state.data.pickupLocation}\n` +
+      `To: ${state.data.dropoffLocation}\n` +
+      `Distance: ${distance}km\n` +
+      `Total: R${total.toFixed(2)}\n\n` +
       `Confirm? Reply: YES or NO`,
   );
 }
 
-async function handleProductConfirm(sock, chatJid, phone, text) {
+async function handleEhailingConfirm(sock, chatJid, phone, text) {
   if (text.toUpperCase() === "YES") {
     await send(sock, chatJid, MESSAGES.paymentInstructions(env));
     await send(sock, chatJid, "💰 After paying, reply with: PAID");
-    setState(phone, "PRODUCT_PAYMENT");
+    setState(phone, "EHAILING_PAYMENT");
   } else if (text.toUpperCase() === "NO") {
-    await send(sock, chatJid, "Order cancelled. Type MENU to start over.");
+    await send(sock, chatJid, "Booking cancelled. Type MENU to start over.");
     setState(phone, "IDLE");
   } else {
     await send(sock, chatJid, "❌ Please reply YES or NO");
   }
 }
 
-async function completeProduct(sock, chatJid, phone, msg) {
-  console.log(`DEBUG: completeProduct for ${phone}`);
+async function completeEhailing(sock, chatJid, phone, msg) {
+  console.log(`DEBUG: completeEhailing for ${phone}`);
   const state = getState(phone);
-  const orderNumber = `ORD${Date.now()}`;
-  const product =
-    state.data.product === "OIL" ? "Anointing Oil" : "Covenant Salt";
+  const orderNumber = `MT${Date.now()}`;
 
-  console.log(`DEBUG: Generating receipt for ${orderNumber}`);
   const receiptPath = await generateReceipt({
     orderNumber,
-    churchName: env.CHURCH_NAME,
-    service: product,
-    quantity: state.data.quantity,
+    companyName: env.COMPANY_NAME,
+    service: "E-hailing Service",
+    details: `From: ${state.data.pickupLocation}\nTo: ${state.data.dropoffLocation}\nDistance: ${state.data.distance}km`,
     amount: state.data.total,
     customer: state.data.name,
   });
-  console.log(`DEBUG: Receipt generated at ${receiptPath}`);
 
   await sendImage(
     sock,
     chatJid,
     receiptPath,
-    `✅ *ORDER CONFIRMED*\n\n` +
-      `📄 Here is your receipt.\n\n` +
-      `Show Pastor Favor ${product}.`,
+    `✅ *RIDE BOOKED*\n\n📄 Your receipt\n🚗 Driver will arrive shortly`,
   );
-  console.log(`DEBUG: Receipt sent to customer ${phone}`);
 
   await sendAdminNotification(
     sock,
     env.ADMIN_NUMBER,
     {
       customer: phone,
-      service: product,
-      details: `Quantity: ${state.data.quantity}`,
+      service: "E-hailing",
+      details: `Pickup: ${state.data.pickupLocation}\nDropoff: ${state.data.dropoffLocation}\nDistance: ${state.data.distance}km`,
       amount: state.data.total,
       orderNumber,
     },
     receiptPath,
   );
-  console.log(`DEBUG: Admin notified`);
 
   setState(phone, "IDLE");
 }
 
-// House Visit handlers
-async function handleHouseVisitConfirm(sock, chatJid, phone, text) {
-  if (text.toUpperCase() === "YES") {
-    await send(
-      sock,
-      chatJid,
-      "📍 Are you home now?\n\n" +
-        "✅ YES - Send your location\n" +
-        "❌ NO - Type SKIP (send location later)",
-    );
-    setState(phone, "HOUSE_VISIT_LOCATION");
-  } else {
-    await send(sock, chatJid, "Type MENU to see other services.");
-    setState(phone, "IDLE");
-  }
+// ========== FOOD DELIVERY HANDLERS ==========
+async function handleFoodRestaurant(sock, chatJid, phone, text) {
+  setState(phone, "FOOD_DELIVERY_ADDRESS", { restaurant: text });
+  await send(sock, chatJid, "📍 Please provide your DELIVERY address");
 }
 
-async function completeHouseVisit(sock, chatJid, phone, msg) {
-  console.log(`DEBUG: completeHouseVisit for ${phone}`);
-  const state = getState(phone);
-  const orderNumber = `ORD${Date.now()}`;
+async function handleFoodDeliveryAddress(sock, chatJid, phone, text) {
+  setState(phone, "FOOD_PAYMENT", { deliveryAddress: text });
+  await send(sock, chatJid, MESSAGES.paymentInstructions(env));
+  await send(sock, chatJid, "💰 After paying, reply with: PAID");
+}
 
-  console.log(`DEBUG: Generating receipt for ${orderNumber}`);
+async function completeFoodDelivery(sock, chatJid, phone, msg) {
+  console.log(`DEBUG: completeFoodDelivery for ${phone}`);
+  const state = getState(phone);
+  const orderNumber = `MT${Date.now()}`;
+
   const receiptPath = await generateReceipt({
     orderNumber,
-    churchName: env.CHURCH_NAME,
-    service: "House Visit by Prophet",
-    amount: env.PRICE_HOUSE_VISIT,
+    companyName: env.COMPANY_NAME,
+    service: "Food Delivery",
+    details: `Restaurant: ${state.data.restaurant}\nDeliver to: ${state.data.deliveryAddress}`,
+    amount: env.PRICE_FOOD_DELIVERY,
     customer: state.data.name,
   });
-  console.log(`DEBUG: Receipt generated at ${receiptPath}`);
 
   await sendImage(
     sock,
     chatJid,
     receiptPath,
-    `✅ *BOOKING CONFIRMED*\n\n` +
-      `📄 Here is your receipt.\n\n` +
-      `🏠 ${state.data.locationPending ? "Please send your location before the visit." : "Stay ready!"}`,
+    `✅ *DELIVERY CONFIRMED*\n\n📄 Your receipt\n🍔 Driver will pick up your food and deliver soon`,
   );
-  console.log(`DEBUG: Receipt sent to customer ${phone}`);
-
-  const locationInfo = state.data.locationPending
-    ? "Location: PENDING (customer will send later)"
-    : `Location: ${state.data.location.lat}, ${state.data.location.lng}`;
 
   await sendAdminNotification(
     sock,
     env.ADMIN_NUMBER,
     {
       customer: phone,
-      service: "House Visit",
-      details: locationInfo,
-      amount: env.PRICE_HOUSE_VISIT,
+      service: "Food Delivery",
+      details: `Restaurant: ${state.data.restaurant}\nDeliver to: ${state.data.deliveryAddress}`,
+      amount: env.PRICE_FOOD_DELIVERY,
       orderNumber,
     },
     receiptPath,
   );
-  console.log(`DEBUG: Admin notified`);
 
   setState(phone, "IDLE");
 }
 
-// FIXED Helper functions with proper error handling and debugging
+// ========== PATIENT TRANSPORT HANDLERS ==========
+async function handlePatientTransportPickup(sock, chatJid, phone, text) {
+  setState(phone, "PATIENT_TRANSPORT_DESTINATION", { pickupLocation: text });
+  await send(sock, chatJid, "🏥 Please provide the DESTINATION (hospital/clinic/home)");
+}
+
+async function handlePatientTransportDestination(sock, chatJid, phone, text) {
+  setState(phone, "PATIENT_TRANSPORT_PAYMENT", { destination: text });
+  await send(sock, chatJid, MESSAGES.paymentInstructions(env));
+  await send(sock, chatJid, "💰 After paying, reply with: PAID");
+}
+
+async function completePatientTransport(sock, chatJid, phone, msg) {
+  console.log(`DEBUG: completePatientTransport for ${phone}`);
+  const state = getState(phone);
+  const orderNumber = `MT${Date.now()}`;
+
+  const receiptPath = await generateReceipt({
+    orderNumber,
+    companyName: env.COMPANY_NAME,
+    service: "Patient Transport",
+    details: `From: ${state.data.pickupLocation}\nTo: ${state.data.destination}`,
+    amount: env.PRICE_PATIENT_TRANSPORT,
+    customer: state.data.name,
+  });
+
+  await sendImage(
+    sock,
+    chatJid,
+    receiptPath,
+    `✅ *TRANSPORT CONFIRMED*\n\n📄 Your receipt\n🚗 Trained medical transport driver will arrive shortly`,
+  );
+
+  await sendAdminNotification(
+    sock,
+    env.ADMIN_NUMBER,
+    {
+      customer: phone,
+      service: "Patient Transport",
+      details: `Pickup: ${state.data.pickupLocation}\nDestination: ${state.data.destination}`,
+      amount: env.PRICE_PATIENT_TRANSPORT,
+      orderNumber,
+    },
+    receiptPath,
+  );
+
+  setState(phone, "IDLE");
+}
+
+// ========== HELPER FUNCTIONS ==========
 async function send(sock, chatJid, text) {
   try {
     console.log(`📤 Sending to ${chatJid}: ${text.substring(0, 50)}...`);
-
     const result = await sock.sendMessage(chatJid, { text });
     console.log(`✅ Message sent successfully to ${chatJid}`);
     return result;
@@ -631,7 +617,6 @@ async function send(sock, chatJid, text) {
 async function sendImage(sock, chatJid, imagePath, caption) {
   try {
     console.log(`📤 Sending image ${imagePath} to ${chatJid}`);
-
     const buffer = readFileSync(imagePath);
     console.log(`Image buffer size: ${buffer.length} bytes`);
 
@@ -665,7 +650,7 @@ async function sendAdminNotification(sock, adminPhone, order, receiptPath) {
       : `+${order.customer}`;
 
     const message =
-      `🔔 *NEW ORDER*\n\n` +
+      `🔔 *NEW BOOKING*\n\n` +
       `Customer: ${customerPhone}\n` +
       `Service: ${order.service}\n` +
       `${order.details}\n` +

@@ -1,49 +1,79 @@
 export const MESSAGES = {
-  menu: `🙏 *Welcome to\n
-   Fountain of Prayer Ministries *
+  menu: `🚗 *Welcome to Molo-Tech Transportation!*
 
-Select a service:
+We provide reliable transport services:
 
-1️⃣ One-on-One with Prophet
-2️⃣ Anointing Oil
-3️⃣ Covenant Salt
-4️⃣ House Visit
+1️⃣ *Patient Delivery* - Medical transport for expectant mothers
+2️⃣ *E-hailing* - Quick rides anywhere in the city
+3️⃣ *Food Delivery* - Fast food pickup & delivery
+4️⃣ *Patient Transport* - Non-emergency medical transport
 
-Reply with number (1-4)`,
+📱 Reply with *1, 2, 3, or 4* to book a service`,
 
-  oneOnOneInfo: (env) =>
-    `✨ *ONE-ON-ONE WITH PROPHET*\n\n` +
-    `Personal prophetic session\n` +
-    `💰 Price: R${env.PRICE_ONE_ON_ONE}`,
+  askForName: `👋 Welcome to Molo-Tech Transportation!
 
-  productInfo: (type, env) => {
-    const price = type === "Oil" ? env.PRICE_OIL : env.PRICE_SALT;
-    return (
-      `✨ *${type === "Oil" ? "ANOINTING OIL" : "COVENANT SALT"}*\n\n` +
-      `Blessed and prayed over\n` +
-      `💰 Price: R${price} each`
-    );
-  },
+Before we proceed, please tell us your *full name*.`,
 
-  houseVisitInfo: (env) =>
-    `🏠 *HOUSE VISIT BY PROPHET*\n\n` +
-    `The prophet will visit your home for:\n` +
-    `• House blessing\n` +
-    `• Prayer session\n` +
-    `• Spiritual cleansing\n\n` +
-    `⏰ Duration: 1-2 hours\n` +
-    `💰 Price: R${env.PRICE_HOUSE_VISIT}\n\n` +
-    `⚠️ Prophet will call 30min before arrival`,
+  // Patient Delivery
+  patientDeliveryInfo: (env) => `👶 *PATIENT DELIVERY SERVICE*
 
-  paymentInstructions: (env) =>
-    `💳 *PAYMENT DETAILS*\n\n` +
-    `*Bank Transfer:*\n` +
-    `Bank: ${env.BANK_NAME}\n` +
-    `Account: ${env.ACCOUNT_NUMBER}\n` +
-    `Branch: ${env.BRANCH_CODE}\n\n` +
-    `*Or PaySharp:*\n` +
-    `Number: ${env.PAYSHARP_NUMBER}`,
+🏥 Safe transport for expectant mothers to hospital/clinic
+✅ Experienced drivers trained in patient care
+⚡ Priority response - Available 24/7
+🚨 Emergency support included
 
-  askForName:
-    "📝 Before we proceed, what is your name and surname? (e.g., Thabo Molefe)",
+💰 *Price:* R${env.PRICE_PATIENT_DELIVERY}
+
+📍 Next: We'll need your pickup and hospital locations`,
+
+  // E-hailing
+  ehailingInfo: (env) => `🚖 *E-HAILING SERVICE*
+
+✅ Professional drivers
+🚗 Clean, comfortable vehicles
+⚡ Quick pickup times
+💳 Affordable rates
+
+💰 *Base fare:* R${env.PRICE_EHAILING_BASE}
+💰 *Per km:* R${env.PRICE_EHAILING_PER_KM}
+
+📍 Next: We'll need pickup and drop-off locations`,
+
+  // Food Delivery
+  foodDeliveryInfo: (env) => `🍔 *FOOD DELIVERY SERVICE*
+
+🏪 We pick up from any restaurant
+⚡ Fast delivery
+📦 Safe food handling
+✅ Direct to your door
+
+💰 *Delivery fee:* R${env.PRICE_FOOD_DELIVERY}
+
+📍 Next: We'll need restaurant location and your delivery address`,
+
+  // Patient Transport
+  patientTransportInfo: (env) => `🏥 *PATIENT TRANSPORT SERVICE*
+
+🚑 Non-emergency medical transport
+♿ Wheelchair accessible vehicles available
+👨‍⚕️ Trained support staff
+🏥 Hospital/clinic appointments
+🏠 Home visits
+
+💰 *Price:* R${env.PRICE_PATIENT_TRANSPORT}
+
+📍 Next: We'll need pickup and destination locations`,
+
+  paymentInstructions: (env) => `💳 *PAYMENT INSTRUCTIONS*
+
+Please deposit to:
+🏦 Bank: ${env.BANK_NAME}
+👤 Account: ${env.ACCOUNT_NAME}
+🔢 Number: ${env.ACCOUNT_NUMBER}
+🔀 Type: ${env.ACCOUNT_TYPE}
+
+📱 Or via eWallet:
+📞 ${env.EWALLET_NUMBER}
+
+⚠️ *Important:* Use your phone number as reference`,
 };

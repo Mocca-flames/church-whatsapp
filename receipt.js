@@ -1,135 +1,150 @@
 import { createCanvas, loadImage } from "canvas";
-import { writeFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync } from "fs";
 
 export async function generateReceipt(data) {
-  const width = 600;
-  const height = 800;
+  const {
+    orderNumber,
+    companyName = "Molo-Tech Transportation",
+    service,
+    details = "",
+    amount,
+    customer,
+  } = data;
+
+  // Canvas setup
+  const width = 800;
+  const height = 1000;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  // Colors (70-20-10 Rule)
-  const cNeutral = "#FFFFFF"; // 70% Base
-  const cSubtle = "#F1F5F9"; // Secondary Neutral
-  const cPrimary = "#1E3A8A"; // 20% Brand (Deep Blue)
-  const cAccent = "#059669"; // 10% Action (Emerald Green)
-  const cTextMain = "#1E293B"; // Text
-  const cTextMuted = "#64748B"; // Labels
-
-  // ================= BACKGROUND =================
-  ctx.fillStyle = cSubtle;
+  // Background
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
-  // ================= MAIN WHITE CARD =================
-  const margin = 40;
-  ctx.fillStyle = cNeutral;
-  // Subtle shadow for depth
-  ctx.shadowColor = "rgba(0,0,0,0.05)";
-  ctx.shadowBlur = 15;
-  ctx.shadowOffsetY = 10;
-  roundRect(ctx, margin, margin, width - margin * 2, height - margin * 2, 16);
-  ctx.fill();
-  ctx.shadowColor = "transparent";
+  // Header background - Transportation blue
+  ctx.fillStyle = "#1e40af";
+  ctx.fillRect(0, 0, width, 180);
 
-  // ================= LOGO & HEADER =================
-  let currentY = 100;
-
-  if (existsSync("./assets/logo.png")) {
-    const logo = await loadImage("./assets/logo.png");
-    ctx.drawImage(logo, width / 2 - 35, currentY - 40, 70, 70);
-    currentY += 60;
-  }
-
+  // Company name
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 48px Arial";
   ctx.textAlign = "center";
-  ctx.fillStyle = cPrimary;
-  ctx.font = "bold 24px sans-serif";
-  ctx.fillText(data.churchName.toUpperCase(), width / 2, currentY);
+  ctx.fillText(companyName.toUpperCase(), width / 2, 70);
 
-  currentY += 40;
-  ctx.fillStyle = cTextMuted;
-  ctx.font = "500 16px sans-serif";
-  ctx.fillText(`OFFICIAL PAYMENT RECEIPT`, width / 2, currentY);
+  // Tagline
+  ctx.font = "24px Arial";
+  ctx.fillText("Your Trusted Transport Partner", width / 2, 110);
 
-  // Divider
-  currentY += 30;
-  ctx.strokeStyle = "#E2E8F0";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(margin + 40, currentY);
-  ctx.lineTo(width - margin - 40, currentY);
-  ctx.stroke();
+  // Receipt title
+  ctx.fillStyle = "#1e40af";
+  ctx.font = "bold 36px Arial";
+  ctx.fillText("RECEIPT", width / 2, 250);
 
-  // ================= TRANSACTION DETAILS =================
-  currentY += 50;
+  // Order number
+  ctx.fillStyle = "#374151";
+  ctx.font = "24px Arial";
+  ctx.fillText(`Order #${orderNumber}`, width / 2, 290);
 
-  function drawRow(label, value) {
-    ctx.textAlign = "left";
-    ctx.fillStyle = cTextMuted;
-    ctx.font = "600 14px sans-serif";
-    ctx.fillText(label.toUpperCase(), margin + 50, currentY);
-
-    ctx.textAlign = "right";
-    ctx.fillStyle = cTextMain;
-    ctx.font = "bold 18px sans-serif";
-    ctx.fillText(value, width - margin - 50, currentY);
-
-    currentY += 45;
-  }
-
-  drawRow("Receipt No", `#${data.orderNumber}`);
-  drawRow("Service", data.service);
-  drawRow("Customer", data.customer);
-  if (data.quantity) drawRow("Quantity", data.quantity.toString());
-  drawRow("Date", data.date || new Date().toLocaleDateString("en-ZA"));
-
-  // ================= AMOUNT SECTION (The Focus) =================
-  currentY += 30;
-  const amtBoxW = width - margin * 2 - 80;
-  const amtBoxX = (width - amtBoxW) / 2;
-
-  // Background for amount (very light green tint)
-  ctx.fillStyle = "#F0FDF4";
-  roundRect(ctx, amtBoxX, currentY, amtBoxW, 110, 12);
-  ctx.fill();
-
-  // Border for amount
-  ctx.strokeStyle = "#DCFCE7";
+  // Divider line
+  ctx.strokeStyle = "#d1d5db";
   ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(50, 320);
+  ctx.lineTo(width - 50, 320);
   ctx.stroke();
 
+  // Receipt details
+  ctx.textAlign = "left";
+  ctx.font = "22px Arial";
+  let yPos = 370;
+
+  // Customer
+  ctx.fillStyle = "#6b7280";
+  ctx.fillText("Customer:", 80, yPos);
+  ctx.fillStyle = "#111827";
+  ctx.font = "bold 22px Arial";
+  ctx.fillText(customer, 250, yPos);
+
+  // Service
+  yPos += 50;
+  ctx.font = "22px Arial";
+  ctx.fillStyle = "#6b7280";
+  ctx.fillText("Service:", 80, yPos);
+  ctx.fillStyle = "#111827";
+  ctx.font = "bold 22px Arial";
+  ctx.fillText(service, 250, yPos);
+
+  // Details (multi-line support)
+  if (details) {
+    yPos += 50;
+    ctx.font = "22px Arial";
+    ctx.fillStyle = "#6b7280";
+    ctx.fillText("Details:", 80, yPos);
+    
+    ctx.fillStyle = "#111827";
+    ctx.font = "20px Arial";
+    const detailLines = details.split("\n");
+    detailLines.forEach((line, index) => {
+      ctx.fillText(line, 250, yPos + (index * 30));
+    });
+    yPos += (detailLines.length - 1) * 30;
+  }
+
+  // Date
+  yPos += 50;
+  ctx.font = "22px Arial";
+  ctx.fillStyle = "#6b7280";
+  ctx.fillText("Date:", 80, yPos);
+  ctx.fillStyle = "#111827";
+  ctx.font = "bold 22px Arial";
+  ctx.fillText(new Date().toLocaleDateString(), 250, yPos);
+
+  // Divider line
+  yPos += 50;
+  ctx.strokeStyle = "#d1d5db";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(50, yPos);
+  ctx.lineTo(width - 50, yPos);
+  ctx.stroke();
+
+  // Amount section
+  yPos += 70;
+  ctx.fillStyle = "#1e40af";
+  ctx.font = "28px Arial";
+  ctx.fillText("TOTAL AMOUNT:", 80, yPos);
+
+  ctx.font = "bold 48px Arial";
+  ctx.fillStyle = "#059669";
+  ctx.textAlign = "right";
+  ctx.fillText(`R${amount}`, width - 80, yPos);
+
+  // Status
+  yPos += 80;
+  ctx.fillStyle = "#10b981";
+  ctx.fillRect(50, yPos - 35, width - 100, 60);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 32px Arial";
   ctx.textAlign = "center";
-  ctx.fillStyle = cAccent;
-  ctx.font = "600 14px sans-serif";
-  ctx.fillText("TOTAL AMOUNT PAID", width / 2, currentY + 35);
+  ctx.fillText("✓ PAID", width / 2, yPos);
 
-  ctx.font = "bold 48px sans-serif";
-  ctx.fillText(`R ${data.amount}`, width / 2, currentY + 85);
+  // Footer
+  yPos += 100;
+  ctx.fillStyle = "#6b7280";
+  ctx.font = "18px Arial";
+  ctx.fillText("Thank you for choosing Molo-Tech Transportation!", width / 2, yPos);
+  
+  yPos += 35;
+  ctx.font = "16px Arial";
+  ctx.fillText("Keep this receipt for your records", width / 2, yPos);
 
-  // ================= FOOTER / STATUS =================
-  currentY += 160;
+  yPos += 35;
+  ctx.fillText("For support: contact@molotech.co.za", width / 2, yPos);
 
-  ctx.fillStyle = cTextMuted;
-  ctx.font = "bold 18px sans-serif";
-  ctx.fillText("Please Show Pastor Favor.", width / 2, height - 80);
-
-  // ================= SAVE =================
-  if (!existsSync("./receipts")) mkdirSync("./receipts");
-  const filename = `./receipts/${data.orderNumber}.png`;
-  writeFileSync(filename, canvas.toBuffer());
+  // Save
+  const filename = `receipt_${orderNumber}.png`;
+  const buffer = canvas.toBuffer("image/png");
+  writeFileSync(filename, buffer);
 
   return filename;
-}
-
-// Optimized Rounded Rect Helper
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
 }
